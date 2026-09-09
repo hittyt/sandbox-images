@@ -1,0 +1,21 @@
+# Build output and metadata
+build/
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Editor and IDE configurations
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Temporary and log files
+*.log
+tmp/

@@ -15,8 +15,8 @@
 
 set -euo pipefail
 
-repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
-script="$repo_root/sandboxes/code-interpreter/scripts/code-interpreter.sh"
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+script="$repo_root/scripts/code-interpreter.sh"
 sandbox=$(mktemp -d)
 trap 'rm -rf "$sandbox"' EXIT
 

@@ -1,0 +1,175 @@
+name: Release
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+  packages: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  preflight:
+    name: Release preflight
+    uses: ./.github/workflows/release-preflight.yml
+    with:
+      require_approval: true
+
+  publish:
+    name: Build & Publish Release Images
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.1
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Login to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          df -h
+
+      - name: Build and push release images
+        id: build
+        env:
+          TAG: ${{ needs.preflight.outputs.release_tag }}
+          PUSH: "true"
+          GHCR_REPO: ghcr.io/opensandbox-group/opensandbox
+          BUILD_METADATA_FILE: ${{ runner.temp }}/code-interpreter-metadata.json
+          BASE_BUILD_METADATA_FILE: ${{ runner.temp }}/code-interpreter-base-metadata.json
+        run: |
+          ./build.sh
+
+          BASE_DIGEST="$(jq -r '."containerimage.digest" // empty' "$BASE_BUILD_METADATA_FILE")"
+          if [[ -z "$BASE_DIGEST" ]]; then
+            echo "Unable to resolve base image digest from $BASE_BUILD_METADATA_FILE" >&2
+            cat "$BASE_BUILD_METADATA_FILE" >&2 || true
+            exit 1
+          fi
+
+          MAIN_DIGEST="$(jq -r '."containerimage.digest" // empty' "$BUILD_METADATA_FILE")"
+          if [[ -z "$MAIN_DIGEST" ]]; then
+            echo "Unable to resolve main image digest from $BUILD_METADATA_FILE" >&2
+            cat "$BUILD_METADATA_FILE" >&2 || true
+            exit 1
+          fi
+
+          echo "base_digest=${BASE_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "main_digest=${MAIN_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "base_dockerhub=docker.io/opensandbox/code-interpreter-base" >> "$GITHUB_OUTPUT"
+          echo "base_acr=sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter-base" >> "$GITHUB_OUTPUT"
+          echo "base_ghcr=${GHCR_REPO}/code-interpreter-base" >> "$GITHUB_OUTPUT"
+          echo "main_dockerhub=docker.io/opensandbox/code-interpreter" >> "$GITHUB_OUTPUT"
+          echo "main_acr=sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter" >> "$GITHUB_OUTPUT"
+          echo "main_ghcr=${GHCR_REPO}/code-interpreter" >> "$GITHUB_OUTPUT"
+
+      - name: Sign release images with Cosign
+        env:
+          BASE_DIGEST: ${{ steps.build.outputs.base_digest }}
+          BASE_DOCKERHUB: ${{ steps.build.outputs.base_dockerhub }}
+          BASE_ACR: ${{ steps.build.outputs.base_acr }}
+          BASE_GHCR: ${{ steps.build.outputs.base_ghcr }}
+          MAIN_DIGEST: ${{ steps.build.outputs.main_digest }}
+          MAIN_DOCKERHUB: ${{ steps.build.outputs.main_dockerhub }}
+          MAIN_ACR: ${{ steps.build.outputs.main_acr }}
+          MAIN_GHCR: ${{ steps.build.outputs.main_ghcr }}
+        run: |
+          set -euo pipefail
+          echo "Signing base images..."
+          cosign sign --yes \
+            "${BASE_DOCKERHUB}@${BASE_DIGEST}" \
+            "${BASE_ACR}@${BASE_DIGEST}" \
+            "${BASE_GHCR}@${BASE_DIGEST}"
+
+          echo "Signing main images..."
+          cosign sign --yes \
+            "${MAIN_DOCKERHUB}@${MAIN_DIGEST}" \
+            "${MAIN_ACR}@${MAIN_DIGEST}" \
+            "${MAIN_GHCR}@${MAIN_DIGEST}"
+
+      - name: Attest base image (DockerHub)
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.build.outputs.base_dockerhub }}
+          subject-digest: ${{ steps.build.outputs.base_digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Attest base image (ACR)
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.build.outputs.base_acr }}
+          subject-digest: ${{ steps.build.outputs.base_digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Attest base image (GHCR)
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.build.outputs.base_ghcr }}
+          subject-digest: ${{ steps.build.outputs.base_digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Attest main image (DockerHub)
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.build.outputs.main_dockerhub }}
+          subject-digest: ${{ steps.build.outputs.main_digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Attest main image (ACR)
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.build.outputs.main_acr }}
+          subject-digest: ${{ steps.build.outputs.main_digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Attest main image (GHCR)
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.build.outputs.main_ghcr }}
+          subject-digest: ${{ steps.build.outputs.main_digest }}
+          push-to-registry: true
+          create-storage-record: false

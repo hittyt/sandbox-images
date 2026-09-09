@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright 2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,35 +13,96 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -ex
+set -euo pipefail
 
-TAG=${TAG:-latest}
-GHCR_REPO=${GHCR_REPO:-}
-BUILD_METADATA_FILE=${BUILD_METADATA_FILE:-build/code-interpreter-image-metadata.json}
-mkdir -p "$(dirname "${BUILD_METADATA_FILE}")"
+if ! docker buildx version >/dev/null 2>&1; then
+  echo "Error: docker buildx is required to build code-interpreter." >&2
+  exit 1
+fi
 
-docker buildx rm code-interpreter-builder || true
+TAG="${TAG:-latest}"
+PUSH="${PUSH:-false}"
+PLATFORMS="${PLATFORMS:-}"
+GHCR_REPO="${GHCR_REPO:-}"
+BUILD_METADATA_FILE="${BUILD_METADATA_FILE:-build/code-interpreter-image-metadata.json}"
+BASE_BUILD_METADATA_FILE="${BASE_BUILD_METADATA_FILE:-build/code-interpreter-base-image-metadata.json}"
 
-docker buildx create --use --name code-interpreter-builder
+ACR_PREFIX="sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox"
 
-docker buildx inspect --bootstrap
+if [[ "${PUSH}" != "true" && "${PUSH}" != "false" ]]; then
+  echo "Error: invalid PUSH=${PUSH}. Must be 'true' or 'false'." >&2
+  exit 1
+fi
 
-docker buildx ls
+if [[ "${PUSH}" == "false" && "${PLATFORMS}" == *","* ]]; then
+  echo "Error: local builds (PUSH=false) do not support multi-platform exports to Docker daemon. Specify a single platform or use PUSH=true for publishing." >&2
+  exit 1
+fi
 
-#docker buildx build -t opensandbox/code-interpreter-base:${TAG} \
-#  --platform linux/amd64,linux/arm64 \
-#  -f Dockerfile_base \
-#  --push \
-#  .
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "${REPO_ROOT}"
 
-IMAGE_TAGS=(-t opensandbox/code-interpreter:${TAG} -t sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:${TAG})
+mkdir -p "$(dirname "${BUILD_METADATA_FILE}")" "$(dirname "${BASE_BUILD_METADATA_FILE}")"
+
+BUILD_OPTS=()
+if [[ -n "${PLATFORMS}" ]]; then
+  BUILD_OPTS+=(--platform "${PLATFORMS}")
+elif [[ "${PUSH}" == "true" ]]; then
+  BUILD_OPTS+=(--platform "linux/amd64,linux/arm64")
+fi
+
+if [[ "${PUSH}" == "true" ]]; then
+  BUILD_OPTS+=(--push)
+else
+  # Use the daemon-backed builder so the second build can resolve the loaded base.
+  LOCAL_BUILDER="$(docker context show 2>/dev/null || echo default)"
+  BUILD_OPTS+=(--builder "${LOCAL_BUILDER:-default}" --load)
+fi
+
+# 1. Build Base Image
+echo "==> Building code-interpreter-base:${TAG}..."
+BASE_TAGS=(
+  -t "opensandbox/code-interpreter-base:${TAG}"
+  -t "${ACR_PREFIX}/code-interpreter-base:${TAG}"
+)
 if [[ -n "${GHCR_REPO}" ]]; then
-  IMAGE_TAGS+=(-t "${GHCR_REPO}/code-interpreter:${TAG}")
+  BASE_TAGS+=(-t "${GHCR_REPO}/code-interpreter-base:${TAG}")
 fi
 
 docker buildx build \
-  "${IMAGE_TAGS[@]}" \
-  --platform linux/amd64,linux/arm64 \
-  --metadata-file "${BUILD_METADATA_FILE}" \
-  --push \
+  "${BASE_TAGS[@]}" \
+  "${BUILD_OPTS[@]}" \
+  --metadata-file "${BASE_BUILD_METADATA_FILE}" \
+  -f Dockerfile_base \
   .
+
+# 2. Build Main Image
+echo "==> Building code-interpreter:${TAG}..."
+if [[ "${PUSH}" == "true" ]]; then
+  BASE_DIGEST="$(jq -r '."containerimage.digest" // empty' "${BASE_BUILD_METADATA_FILE}")"
+  if [[ -z "${BASE_DIGEST}" ]]; then
+    echo "Error: unable to resolve base image digest from ${BASE_BUILD_METADATA_FILE}" >&2
+    exit 1
+  fi
+  BASE_IMAGE="opensandbox/code-interpreter-base@${BASE_DIGEST}"
+else
+  BASE_IMAGE="opensandbox/code-interpreter-base:${TAG}"
+fi
+
+MAIN_TAGS=(
+  -t "opensandbox/code-interpreter:${TAG}"
+  -t "${ACR_PREFIX}/code-interpreter:${TAG}"
+)
+if [[ -n "${GHCR_REPO}" ]]; then
+  MAIN_TAGS+=(-t "${GHCR_REPO}/code-interpreter:${TAG}")
+fi
+
+docker buildx build \
+  "${MAIN_TAGS[@]}" \
+  "${BUILD_OPTS[@]}" \
+  --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
+  --metadata-file "${BUILD_METADATA_FILE}" \
+  -f Dockerfile \
+  .
+
+echo "==> Successfully built code-interpreter:${TAG} (base: ${BASE_IMAGE})"

@@ -1,0 +1,63 @@
+name: Release Preflight
+
+on:
+  workflow_call:
+    inputs:
+      require_approval:
+        description: Require approval through the release environment
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      release_tag:
+        description: Validated semantic version release tag
+        value: ${{ jobs.verify-source.outputs.release_tag }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify-source:
+    name: Verify release tag and source
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.validate_tag.outputs.release_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag
+        id: validate_tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "${REF_TYPE}" != "tag" ]]; then
+            echo "::error::Release workflow can only run on git tags, got REF_TYPE=${REF_TYPE} (ref=${REF_NAME})."
+            echo "For manual triggers, choose an existing tag matching 'vX.Y.Z'."
+            exit 1
+          fi
+
+          if [[ ! "${REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '${REF_NAME}' does not match required semver release format 'vX.Y.Z' (e.g. v1.0.0, v1.0.0-rc.1)."
+            exit 1
+          fi
+
+          echo "release_tag=${REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Validated release tag: ${REF_NAME}"
+
+      - name: Verify release commit is reachable from main
+        run: scripts/release/verify-release-ref.sh
+
+  approve-release:
+    name: Approve release
+    if: ${{ inputs.require_approval }}
+    needs: verify-source
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Record approval
+        run: echo "Release environment approval granted."

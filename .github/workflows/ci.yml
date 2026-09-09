@@ -1,0 +1,80 @@
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    name: Lint & Regression Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: |
+          shellcheck build.sh tests/*.sh scripts/release/*.sh
+          shellcheck -e SC2155,SC2010,SC2086,SC1091 scripts/code-interpreter.sh scripts/code-interpreter-env.sh
+
+      - name: Check Shell Syntax
+        run: |
+          for f in build.sh scripts/*.sh tests/*.sh scripts/release/*.sh; do
+            echo "Checking syntax: $f"
+            bash -n "$f"
+          done
+
+      - name: Check Python Syntax
+        run: |
+          python3 -m py_compile scripts/jupyter_notebook_config.py tests/smoke_test_kernels.py
+
+      - name: Run Node Setup Regression Test
+        run: |
+          bash tests/test_code_interpreter_node_setup.sh
+
+  build-and-smoke-test:
+    name: Build & Smoke Test (${{ matrix.arch }})
+    needs: lint-and-test
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          df -h
+
+      - name: Build Base and Main Images Locally
+        run: |
+          TAG=ci-test ./build.sh
+
+      - name: Run Reusable Kernel Smoke Test
+        run: |
+          ./tests/smoke_test.sh opensandbox/code-interpreter:ci-test
