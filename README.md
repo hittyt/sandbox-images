@@ -1,14 +1,14 @@
-# OpenSandbox Code Interpreter Environment
+# OpenSandbox Sandbox Environment Images
 
 English | [中文](README_zh.md)
 
-This repository contains the standalone Docker build files, runtime scripts, test suites, and CI/release workflows for the OpenSandbox Code Interpreter environment. The image is based on `Ubuntu 24.04` and comes pre-installed with multiple mainstream programming languages and multi-version environments, designed to provide an out-of-the-box multi-language code execution sandbox.
+This repository contains the standalone Docker build files, runtime scripts, test suites, and CI/release workflows for OpenSandbox sandbox environment images. Currently, the Code Interpreter (`code-interpreter`) environment is supported. The image is based on `Ubuntu 24.04` and comes pre-installed with multiple mainstream programming languages and multi-version environments, designed to provide an out-of-the-box multi-language code execution sandbox.
 
 ## Provenance & Upstream Origin
 
 - **Upstream Origin**: Extracted from the `sandboxes/code-interpreter` directory of the core [OpenSandbox](https://github.com/opensandbox-group/OpenSandbox) monorepo at commit [`4e69fc5fe478651b2e297d38a06d6ddeb805795e`](https://github.com/opensandbox-group/OpenSandbox/commit/4e69fc5fe478651b2e297d38a06d6ddeb805795e) (tracked in [issue #1764](https://github.com/opensandbox-group/OpenSandbox/issues/1764)).
 - **History Preservation**: Full commit history has been preserved (commit SHAs were rewritten during root extraction, but original author metadata, commit messages, and change chronology are preserved).
-- **Ecosystem Links**: This repository focuses exclusively on building, testing, and publishing the `code-interpreter` and `code-interpreter-base` images. It works alongside:
+- **Ecosystem Links**: Currently, this repository builds, tests, and publishes the `code-interpreter` and `code-interpreter-base` images. It works alongside:
   - [OpenSandbox Core Repository](https://github.com/opensandbox-group/OpenSandbox)
   - [OpenSandbox API Specifications](https://github.com/opensandbox-group/OpenSandbox/tree/main/specs)
   - [OpenSandbox SDKs](https://github.com/opensandbox-group/OpenSandbox/tree/main/sdks)
@@ -280,12 +280,12 @@ Release images are signed with Sigstore Cosign using GitHub Actions OIDC identit
 
 - **Signer Workflow Identity**:
   - Issuer: `https://token.actions.githubusercontent.com`
-  - Workflow Ref: `https://github.com/opensandbox-group/code-interpreter/.github/workflows/release.yml@refs/tags/<version>`
+  - Workflow Ref: `https://github.com/opensandbox-group/sandbox-images/.github/workflows/release.yml@refs/tags/<version>`
 
 - **Cosign Verification**:
   ```bash
   cosign verify \
-    --certificate-identity-regexp '^https://github\.com/opensandbox-group/code-interpreter/\.github/workflows/release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+' \
+    --certificate-identity-regexp '^https://github\.com/opensandbox-group/sandbox-images/\.github/workflows/release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+' \
     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
     docker.io/opensandbox/code-interpreter:v1.0.0
   ```
@@ -293,10 +293,10 @@ Release images are signed with Sigstore Cosign using GitHub Actions OIDC identit
 - **GitHub Attestation Verification**:
   ```bash
   gh attestation verify oci://docker.io/opensandbox/code-interpreter:v1.0.0 \
-    --repo opensandbox-group/code-interpreter
+    --repo opensandbox-group/sandbox-images
   ```
 
-> **Historical Note**: Images published prior to repository extraction (e.g., `v1.1.0` or earlier) were signed under the upstream monorepo workflow identity (`opensandbox-group/OpenSandbox/.github/workflows/publish-components.yml`). Releases from this repository onward carry the `opensandbox-group/code-interpreter` identity.
+> **Historical Note**: Images published prior to repository extraction (e.g., `v1.1.0` or earlier) were signed under the upstream monorepo workflow identity (`opensandbox-group/OpenSandbox/.github/workflows/publish-components.yml`). Releases from this repository onward carry the `opensandbox-group/sandbox-images` identity.
 
 ### Monorepo Consumption & Version Pinning
 
@@ -337,5 +337,5 @@ This project is licensed under the [Apache License, Version 2.0](LICENSE).
 
 ## Support & Contributing
 
-- **Issues & Discussions**: [OpenSandbox Issues](https://github.com/opensandbox-group/OpenSandbox/issues)
+- **Issues & Discussions**: [sandbox-images Issues](https://github.com/opensandbox-group/sandbox-images/issues)
 - **Core Repository**: [opensandbox-group/OpenSandbox](https://github.com/opensandbox-group/OpenSandbox)

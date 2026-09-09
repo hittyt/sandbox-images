@@ -1,14 +1,14 @@
-# OpenSandbox Code Interpreter 环境
+# OpenSandbox 沙箱环境镜像
 
 中文 | [English](README.md)
 
-本仓库包含 OpenSandbox Code Interpreter 环境的独立 Docker 构建文件、运行时脚本、测试套件以及 CI 与发布工作流。该镜像基于 `Ubuntu 24.04`，预装了多种主流编程语言及其多版本环境，旨在提供一个开箱即用的多语言代码执行沙箱。
+本仓库包含 OpenSandbox 沙箱环境镜像的独立 Docker 构建文件、运行时脚本、测试套件以及 CI 与发布工作流。目前支持 Code Interpreter（`code-interpreter`）环境。该镜像基于 `Ubuntu 24.04`，预装了多种主流编程语言及其多版本环境，旨在提供一个开箱即用的多语言代码执行沙箱。
 
 ## 来源背景与上游追溯
 
 - **上游来源**：从核心 [OpenSandbox](https://github.com/opensandbox-group/OpenSandbox) 单体仓库的 `sandboxes/code-interpreter` 目录独立拆分而来，对应提交为 [`4e69fc5fe478651b2e297d38a06d6ddeb805795e`](https://github.com/opensandbox-group/OpenSandbox/commit/4e69fc5fe478651b2e297d38a06d6ddeb805795e)（相关工作见 [Issue #1764](https://github.com/opensandbox-group/OpenSandbox/issues/1764)）。
 - **历史保留**：完整保留了该模块的 Git 提交历史（根目录路径映射虽使提交 SHA 发生变化，但提交作者、提交信息及时间线完整保留）。
-- **生态关联**：本仓库专注于 `code-interpreter` 与 `code-interpreter-base` 镜像的独立构建、测试与发版，并与以下项目协同工作：
+- **生态关联**：本仓库目前提供 `code-interpreter` 与 `code-interpreter-base` 镜像的独立构建、测试与发版，并与以下项目协同工作：
   - [OpenSandbox 主仓库](https://github.com/opensandbox-group/OpenSandbox)
   - [OpenSandbox API 规范](https://github.com/opensandbox-group/OpenSandbox/tree/main/specs)
   - [OpenSandbox SDKs](https://github.com/opensandbox-group/OpenSandbox/tree/main/sdks)
@@ -280,12 +280,12 @@ source /opt/code-interpreter/code-interpreter-env.sh go
 
 - **工作流身份（Workflow Identity）**：
   - Issuer: `https://token.actions.githubusercontent.com`
-  - Workflow Ref: `https://github.com/opensandbox-group/code-interpreter/.github/workflows/release.yml@refs/tags/<version>`
+  - Workflow Ref: `https://github.com/opensandbox-group/sandbox-images/.github/workflows/release.yml@refs/tags/<version>`
 
 - **Cosign 签名校验**：
   ```bash
   cosign verify \
-    --certificate-identity-regexp '^https://github\.com/opensandbox-group/code-interpreter/\.github/workflows/release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+' \
+    --certificate-identity-regexp '^https://github\.com/opensandbox-group/sandbox-images/\.github/workflows/release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+' \
     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
     docker.io/opensandbox/code-interpreter:v1.0.0
   ```
@@ -293,10 +293,10 @@ source /opt/code-interpreter/code-interpreter-env.sh go
 - **GitHub 来源证明校验**：
   ```bash
   gh attestation verify oci://docker.io/opensandbox/code-interpreter:v1.0.0 \
-    --repo opensandbox-group/code-interpreter
+    --repo opensandbox-group/sandbox-images
   ```
 
-> **历史签名说明**：在仓库拆分前发布的历史镜像（如 `v1.1.0` 或更早版本）由上游单体仓库工作流身份（`opensandbox-group/OpenSandbox/.github/workflows/publish-components.yml`）签名。从本仓库起发布的新镜像均带有 `opensandbox-group/code-interpreter` 身份。
+> **历史签名说明**：在仓库拆分前发布的历史镜像（如 `v1.1.0` 或更早版本）由上游单体仓库工作流身份（`opensandbox-group/OpenSandbox/.github/workflows/publish-components.yml`）签名。从本仓库起发布的新镜像均带有 `opensandbox-group/sandbox-images` 身份。
 
 ### 主仓库版本固定方式
 
@@ -337,5 +337,5 @@ source /opt/code-interpreter/code-interpreter-env.sh go
 
 ## 支持与参与
 
-- **Issue 与讨论**：[OpenSandbox Issues](https://github.com/opensandbox-group/OpenSandbox/issues)
+- **Issue 与讨论**：[sandbox-images Issues](https://github.com/opensandbox-group/sandbox-images/issues)
 - **核心主仓库**：[opensandbox-group/OpenSandbox](https://github.com/opensandbox-group/OpenSandbox)
