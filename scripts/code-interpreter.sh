@@ -167,7 +167,9 @@ pids+=($!)
 
 # Runtime artifacts live under /tmp so the Landlock hardening floor
 # (read+exec on /opt, read+write on /tmp) keeps working out of the box.
-export JUPYTER_RUNTIME_DIR=/tmp/jupyter-runtime
-mkdir -p /tmp/jupyter-runtime /tmp/code-interpreter
+JUPYTER_RUNTIME_DIR=$(mktemp -d /tmp/opensandbox-jupyter.XXXXXXXXXX) || exit 1
+export JUPYTER_RUNTIME_DIR
 
-jupyter notebook --ip=127.0.0.1 --port="${JUPYTER_PORT:-44771}" --allow-root --no-browser --NotebookApp.token="${JUPYTER_TOKEN:-opensandboxcodeinterpreterjupyter}" >/tmp/code-interpreter/jupyter.log
+jupyter notebook --config=/opt/code-interpreter/jupyter_notebook_config.py \
+	--ip=127.0.0.1 --port="${JUPYTER_PORT:-44771}" --allow-root --no-browser \
+	>"${JUPYTER_RUNTIME_DIR}/jupyter.log" 2>&1

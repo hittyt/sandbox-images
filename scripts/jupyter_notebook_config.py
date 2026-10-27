@@ -17,4 +17,11 @@
 
 # Configuration file for notebook.
 
+import os
+import secrets
+
 c = get_config()  #noqa
+
+# Consume the credential before kernels inherit the server's environment.
+# OpenSandbox's bootstrap supplies the same token to execd and this server.
+c.IdentityProvider.token = os.environ.pop("JUPYTER_TOKEN", "") or secrets.token_hex(32)
