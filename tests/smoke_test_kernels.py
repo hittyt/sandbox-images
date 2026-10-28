@@ -50,14 +50,21 @@ def load_server_credentials(timeout=30):
                 server = json.loads(path.read_text())
             except (OSError, ValueError):
                 continue
-            if server.get("port") == 44771 and server.get("token"):
+            pid = server.get("pid")
+            if (
+                server.get("port") == 44771
+                and server.get("token")
+                and isinstance(pid, int)
+                and pid > 0
+                and Path(f"/proc/{pid}").exists()
+            ):
                 TOKEN = server["token"]
                 configured = os.environ.get("JUPYTER_TOKEN")
                 if configured:
                     assert TOKEN == configured, "Explicit JUPYTER_TOKEN was not preserved"
                 else:
                     assert len(TOKEN) == 64 and all(c in "0123456789abcdef" for c in TOKEN)
-                return path, server["pid"]
+                return path, pid
         time.sleep(1)
     raise TimeoutError("Jupyter did not create its private server information file")
 

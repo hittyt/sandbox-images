@@ -172,7 +172,7 @@ source /opt/code-interpreter/code-interpreter-env.sh go
 - `JUPYTER_PORT`：Jupyter 服务端口（默认：`44771`）
 - `JUPYTER_TOKEN`：与 `execd` 共享的可选访问令牌。未设置或为空时，独立启动的 Jupyter 会生成随机令牌。配置从环境变量读取令牌，并在启动内核前将其移除；令牌不再出现在启动参数中。服务信息和日志保存在仅属主可访问的 `/tmp/opensandbox-jupyter.*` 目录。
 
-此镜像应搭配能够生成随机 `JUPYTER_TOKEN` 并同时传给 `execd` 和镜像入口的 OpenSandbox bootstrap 使用。如果只升级镜像、仍使用旧版 bootstrap/execd，需要显式向两者传入同一个随机生成的 `JUPYTER_TOKEN`，否则无法完成鉴权。显式配置的令牌继续生效；派生镜像需要重新构建，去掉继承的固定令牌。
+此镜像应搭配支持从 `/tmp/opensandbox-jupyter.*/jpserver-*.json` 自动发现独立启动令牌的 `execd` 使用。如果只升级镜像、仍使用不支持自动发现令牌的旧版 `execd`，请在创建沙箱时显式传入随机生成的 `JUPYTER_TOKEN`，否则无法完成鉴权。显式配置的令牌继续生效；派生镜像需要重新构建以去掉继承的固定令牌，若直接调用 `jupyter notebook` 请显式传入 `--config=/opt/code-interpreter/jupyter_notebook_config.py`。
 
 这些措施用于防止其他 Unix 用户直接访问内部 Jupyter 服务。与服务使用相同身份的进程（包括 root 内核）仍处于同一信任边界内；互不信任的租户应使用独立沙箱。
 

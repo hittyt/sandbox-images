@@ -22,6 +22,12 @@ import secrets
 
 c = get_config()  #noqa
 
-# Consume the credential before kernels inherit the server's environment.
-# OpenSandbox's bootstrap supplies the same token to execd and this server.
-c.IdentityProvider.token = os.environ.pop("JUPYTER_TOKEN", "") or secrets.token_hex(32)
+# Consume any explicit credential before kernels inherit the server's
+# environment, or generate a fresh per-sandbox token that execd discovers from
+# the private runtime directory.
+existing_token = getattr(c.IdentityProvider, "token", "")
+if not isinstance(existing_token, str):
+    existing_token = ""
+c.IdentityProvider.token = (
+    os.environ.pop("JUPYTER_TOKEN", "") or existing_token or secrets.token_hex(32)
+)

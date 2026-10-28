@@ -154,6 +154,11 @@ if [ -n "${EXECD_ENVS:-}" ]; then
 	printf 'PATH=%s\n' "$PATH" >>"$EXECD_ENVS" 2>/dev/null || true
 fi
 
+# Pass JUPYTER_TOKEN only to the Jupyter server process so background kernel
+# setup jobs do not inherit the service credential in their environment.
+jupyter_token=${JUPYTER_TOKEN:-}
+unset JUPYTER_TOKEN
+
 setup_python &
 pids+=($!)
 setup_java &
@@ -170,6 +175,6 @@ pids+=($!)
 JUPYTER_RUNTIME_DIR=$(mktemp -d /tmp/opensandbox-jupyter.XXXXXXXXXX) || exit 1
 export JUPYTER_RUNTIME_DIR
 
-jupyter notebook --config=/opt/code-interpreter/jupyter_notebook_config.py \
+JUPYTER_TOKEN="${jupyter_token}" jupyter notebook --config=/opt/code-interpreter/jupyter_notebook_config.py \
 	--ip=127.0.0.1 --port="${JUPYTER_PORT:-44771}" --allow-root --no-browser \
 	>"${JUPYTER_RUNTIME_DIR}/jupyter.log" 2>&1

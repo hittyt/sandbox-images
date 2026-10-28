@@ -43,6 +43,15 @@ class JupyterCredentialsTest(unittest.TestCase):
     def test_shared_or_custom_token_is_preserved_and_removed_from_environment(self):
         self.assertEqual(self.load_config("custom-service-credential"), "custom-service-credential")
 
+    def test_reloading_config_preserves_existing_token_after_env_pop(self):
+        config = SimpleNamespace(IdentityProvider=SimpleNamespace())
+        config_path = str(Path(__file__).resolve().parents[1] / "scripts/jupyter_notebook_config.py")
+        with patch.dict(os.environ, {"JUPYTER_TOKEN": "bootstrap-shared-token"}, clear=True):
+            runpy.run_path(config_path, init_globals={"get_config": lambda: config})
+            self.assertNotIn("JUPYTER_TOKEN", os.environ)
+            runpy.run_path(config_path, init_globals={"get_config": lambda: config})
+        self.assertEqual(config.IdentityProvider.token, "bootstrap-shared-token")
+
 
 if __name__ == "__main__":
     unittest.main()

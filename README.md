@@ -172,7 +172,7 @@ The entrypoint automatically starts Jupyter:
 - `JUPYTER_PORT`: Jupyter server port (default: `44771`)
 - `JUPYTER_TOKEN`: Optional access token shared with `execd`. When absent or empty, standalone Jupyter generates a fresh random token. The token is loaded from the environment, removed before kernels are started, and never passed on the command line.
 
-Use this image with an OpenSandbox bootstrap that generates and shares `JUPYTER_TOKEN` with both `execd` and the image entrypoint. When upgrading the image while keeping an older bootstrap/execd, explicitly supply the same randomly generated `JUPYTER_TOKEN` to both processes; otherwise they cannot authenticate to each other. Existing explicitly configured tokens continue to work. Rebuild derived images to remove any inherited fixed token.
+Use this image with an `execd` release that discovers the standalone token from `/tmp/opensandbox-jupyter.*/jpserver-*.json`. When upgrading the image while keeping an older `execd` that does not discover runtime tokens, explicitly supply a randomly generated `JUPYTER_TOKEN` at sandbox creation; otherwise they cannot authenticate to each other. Existing explicitly configured tokens continue to work. Rebuild derived images to remove any inherited fixed token, and pass `--config=/opt/code-interpreter/jupyter_notebook_config.py` if invoking `jupyter notebook` directly.
 
 These credentials protect the internal Jupyter service from other Unix users. Processes running as the service owner, including root kernels, are still inside the same trust boundary; use separate sandboxes for mutually untrusted tenants.
 
